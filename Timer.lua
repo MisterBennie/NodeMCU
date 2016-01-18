@@ -1,3 +1,21 @@
+--[[
+
+Category:   Timers
+Version:    1.2
+Author:     Ben de Vette <NodeMCU@Profiler.nl>
+Copyright:  2015 - end of time, None
+Licence:    (re)Use as you like
+
+Changelog:
+V1.0:       Initial release
+
+V1.1:       Fixed bug with tmr.now() overflow
+
+V1.2:       Introduced working removeTimeout
+            Removed not needed code so everything should be working a bit faster
+
+]]--
+
 Timer = { 
     timerId = 0,
     timedItems = {},
@@ -39,18 +57,22 @@ Timer = {
     end,
 
     getNextEvent = function(self)
-        local nextTime = 999999999999;
+        local nextTime = 2147483647;
         local nextKey = "";
         local index = 1;
+        local callBack = nil;
+        local triggerTimes = 0;
         local convertTimeout = false;
         local now = tmr.now()
+        local data = nil;
+        
         if (self.now > now) then
             convertTimeout = true;
-            print("============= THIS SHOULD NOT HAPPEN =============")
         end
         
         for key, value in pairs(self.timedItems) do
             if (value.nextEventTime < nextTime) then
+                data = value;
                 nextKey = key;
                 nextTime = value.nextEventTime;
             end
@@ -64,30 +86,32 @@ Timer = {
         end
 
         self.now = now
-        return nextKey, nextTime;
+
+        if (not (data == nil)) then
+           return nextKey, data.nextEventTime, data.callBack, data.triggerTimes;
+        end
     end,
 
     setVariablesForNextEvent = function(self, key)
         local data = self.timedItems[key];
-        data.triggerTimes = data.triggerTimes + 1;
-        
-        if (data.totalNumberOfTimes > 0) then
-            if (data.totalNumberOfTimes == data.triggerTimes) then
-                self.timedItems[key]= nil
-            end
-        end
-        
-        data = self.timedItems[key];
         if (not (data == nil)) then
-            local nextTimeout = tmr.now() / 1000 + data.timeout;
-            data.nextEventTime = nextTimeout;
-
-            self.timedItems[key] = data;
+            data.triggerTimes = data.triggerTimes + 1;
+            
+            if (data.totalNumberOfTimes > 0) then
+                if (data.totalNumberOfTimes == data.triggerTimes) then
+                    self.timedItems[key]= nil
+                end
+            end
+            
+            if (not (data == nil)) then
+                local nextTimeout = tmr.now() / 1000 + data.timeout;
+                data.nextEventTime = nextTimeout;
+            end
         end
     end,
 
     startNextEvent = function(self)
-        local nextKey, nextTime = self:getNextEvent()
+        local nextKey, nextTime, callBack, triggerTimes = self:getNextEvent()
         local interval = nextTime - tmr.now() / 1000;
         if (interval <= 0) then
             interval = 1;
@@ -95,8 +119,6 @@ Timer = {
 
         if (not (nextKey == "")) then
             tmr.alarm(self.timerId, interval, 0, function()
-                local callBack = self.timedItems[nextKey].callBack;
-                local triggerTimes = self.timedItems[nextKey].triggerTimes;
                 callBack(nextKey, triggerTimes);       
                 self:setVariablesForNextEvent(nextKey);
                 self:startNextEvent();                 
