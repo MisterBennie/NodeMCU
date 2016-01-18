@@ -1,0 +1,43 @@
+Usage:
+
+	local luaTimerId = 6
+	timer = Timer:new(luaTimerId)
+	-- When nrOfTimes is 0, the timer will run forever
+	-- callBack is called with two paramers (key, eventNr)
+	-- key is the given key for this timer, eventNr is the numer of times this callback has been called for this timer.
+	timer:addTimeEvent("aTimerKey", delayInMilliSeconds, nrOfTimes, callBack)
+
+	-- Show all currently running timers
+	timer:print() 
+
+	-- Stop a timer
+	timer:stopTimeEvent("GPIO02")	
+
+
+Example:
+	local GPIO05 = 1
+	local GPIO04 = 2
+	local GPIO00 = 3
+	local GPIO02 = 4
+	local luaTimerId = 6
+
+	gpio.mode(GPIO05 , gpio.OUTPUT)
+	gpio.mode(GPIO04 , gpio.OUTPUT)
+	gpio.mode(GPIO00 , gpio.OUTPUT)
+	gpio.mode(GPIO02 , gpio.OUTPUT)
+
+	function toggle(port)
+	    local level = gpio.read(port)
+	    if (level == 0) then
+	        level = 1
+	    else
+	        level = 0
+	    end
+	    gpio.write(port, level)
+	end
+
+	timer = Timer:new(luaTimerId )
+	timer:addTimeEvent("GPIO05", 510, 0, function(key, eventNr) toggle(GPIO05) end)
+	timer:addTimeEvent("GPIO04", 500, 0, function(key, eventNr) toggle(GPIO04) end)
+	timer:addTimeEvent("GPIO00", 490, 0, function(key, eventNr) toggle(GPIO00) end)
+	timer:addTimeEvent("GPIO02", 480, 0, function(key, eventNr) toggle(GPIO02) end)
