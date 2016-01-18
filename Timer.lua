@@ -45,7 +45,7 @@ Timer = {
         local convertTimeout = false;
         local now = tmr.now()
         if (self.now > now) then
-            covertTimeout = true;
+            convertTimeout = true;
             print("============= THIS SHOULD NOT HAPPEN =============")
         end
         
@@ -57,7 +57,7 @@ Timer = {
 
             -- Handle maxInt overflow for tmr.now()
             if (convertTimeout) then
-                local difference = 2147483647 - value.nextEventTime;
+                local difference = 2147483 - value.nextEventTime;
                 print (key.." : "..difference.." : "..(now + difference))
                 value.nextEventTime = now + difference;
             end
