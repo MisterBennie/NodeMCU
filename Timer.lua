@@ -19,10 +19,12 @@ V1.2:       Introduced working removeTimeout
 Timer = { 
     timerId = 0,
     timedItems = {},
+    nrOfTimedObjects = 0,
     running = false,
     now = tmr.now(),
 
     addTimeEvent = function(self, key, timeout, numberOfTimes, callBack)
+        local newTimer = self.timedItems[key] == nil
         if (callBack == nil) then
             return false;
         end
@@ -37,6 +39,10 @@ Timer = {
             totalNumberOfTimes = numberOfTimes,
         }
 
+        if (newTimer) then
+            self:increaseTimerCounter(key);
+        end
+        
         if (not self.running) then
             self.running = true;
             self:startNextEvent();
@@ -46,13 +52,25 @@ Timer = {
     end,
 
     removeTimeEvent = function(self, key)
-        self.timedItems[key]= nil;
+        if (not(self.timedItems[key] == nil)) then
+            self.timedItems[key]= nil;
+            self:decreaseTimerCounter(key);
+            self:startNextEvent();
+        end
     end,
 
     print = function(self)
         print("TimerId: "..self.timerId)
+        if (self.running) then
+            print("Running: Yes")
+            print("Number of timers running: "..self.nrOfTimedObjects - 1)
+        else
+            print("Running: No")
+        end
         for key, value in pairs(self.timedItems) do
-            print(key..": "..value.totalNumberOfTimes..": "..value.nextEventTime)
+            if (not ( key == "InternalTimer")) then
+                print(key..": "..value.triggerTimes.." of "..value.totalNumberOfTimes.." - Timout: "..value.timeout.."mSec")
+            end
         end
     end,
 
@@ -66,8 +84,15 @@ Timer = {
         local now = tmr.now()
         local data = nil;
         
+        -- Handle maxInt overflow for tmr.now()
         if (self.now > now) then
-            convertTimeout = true;
+            for key, value in pairs(self.timedItems) do
+                local difference = value.nextEventTime - 2147483;
+                if (difference < 0) then
+                    value.nextEventTime = -difference;
+                end
+                value.nextEventTime = difference;
+            end
         end
         
         for key, value in pairs(self.timedItems) do
@@ -76,19 +101,12 @@ Timer = {
                 nextKey = key;
                 nextTime = value.nextEventTime;
             end
-
-            -- Handle maxInt overflow for tmr.now()
-            if (convertTimeout) then
-                local difference = 2147483 - value.nextEventTime;
-                print (key.." : "..difference.." : "..(now + difference))
-                value.nextEventTime = now + difference;
-            end
         end
 
         self.now = now
 
         if (not (data == nil)) then
-           return nextKey, data.nextEventTime, data.callBack, data.triggerTimes;
+           return nextKey, data;
         end
     end,
 
@@ -110,14 +128,30 @@ Timer = {
         end
     end,
 
-    startNextEvent = function(self)
-        local nextKey, nextTime, callBack, triggerTimes = self:getNextEvent()
-        local interval = nextTime - tmr.now() / 1000;
-        if (interval <= 0) then
-            interval = 1;
+    increaseTimerCounter = function(self, key)
+        self.nrOfTimedObjects = self.nrOfTimedObjects + 1;
+        if (self.nrOfTimedObjects == 1) then
+            -- Add internal timer so we are sure that very long timers are still executed when we have a tmr.now() overflow
+            self:addTimeEvent("InternalTimer", 1000 * 60, 0, function() end);
         end
+    end,
 
-        if (not (nextKey == "")) then
+    decreaseTimerCounter = function(self, key)
+        self.nrOfTimedObjects = self.nrOfTimedObjects - 1;
+        if (self.nrOfTimedObjects == 1) then
+            self:removeTimeEvent("InternalTimer");
+        end
+    end,
+
+    startNextEvent = function(self)
+        local nextKey, data = self:getNextEvent()
+        nextTime = data.nextEventTime;
+        callBack = data.callBack;
+        if (not (nextKey == "") and not (nextTime == nil)) then
+            local interval = nextTime - tmr.now() / 1000;
+            if (interval <= 0) then
+                interval = 1;
+            end
             tmr.alarm(self.timerId, interval, 0, function()
                 callBack(nextKey, triggerTimes);       
                 self:setVariablesForNextEvent(nextKey);
@@ -136,6 +170,7 @@ Timer = {
         newObject.timerId = timerId
         newObject.running = running
         newObject.now = now 
+        newObject.nrOfTimedObjects = nrOfTimedObjects
         return newObject
     end,
 }
