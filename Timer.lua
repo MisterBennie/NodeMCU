@@ -1,7 +1,7 @@
 --[[
 
 Category:   Timers
-Version:    1.2
+Version:    1.3.1
 Author:     Ben de Vette <NodeMCU@Profiler.nl>
 Copyright:  2015 - end of time, None
 Licence:    (re)Use as you like
@@ -13,6 +13,14 @@ V1.1:       Fixed bug with tmr.now() overflow
 
 V1.2:       Introduced working removeTimeout
             Removed not needed code so everything should be working a bit faster
+
+V1.3:       Rearranged some code for optimalization
+            Fixed tmr.now() overflow bug
+            Maximum timerout is now around 40 days
+            Can start and stop timers without crashing (quite handy)
+            Introduced internal timer to keep everything alive
+
+V1.31:      Something is wrong with the internal time, for the time I set it to 1000mS
 
 ]]--
 
@@ -132,7 +140,7 @@ Timer = {
         self.nrOfTimedObjects = self.nrOfTimedObjects + 1;
         if (self.nrOfTimedObjects == 1) then
             -- Add internal timer so we are sure that very long timers are still executed when we have a tmr.now() overflow
-            self:addTimeEvent("InternalTimer", 1000 * 60, 0, function() end);
+            self:addTimeEvent("InternalTimer", 1000 * 1, 0, function() end);
         end
     end,
 
@@ -150,13 +158,16 @@ Timer = {
         if (not (nextKey == "") and not (nextTime == nil)) then
             local interval = nextTime - tmr.now() / 1000;
             if (interval <= 0) then
-                interval = 1;
-            end
-            tmr.alarm(self.timerId, interval, 0, function()
                 callBack(nextKey, triggerTimes);       
                 self:setVariablesForNextEvent(nextKey);
                 self:startNextEvent();                 
-            end)     
+            else
+                tmr.alarm(self.timerId, interval, 0, function()
+                    callBack(nextKey, triggerTimes);       
+                    self:setVariablesForNextEvent(nextKey);
+                    self:startNextEvent();                 
+                end)     
+            end
         else
             self.running = false;
         end
